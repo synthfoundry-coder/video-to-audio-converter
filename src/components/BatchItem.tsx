@@ -7,11 +7,9 @@ import {
   Download,
   Trash2,
   Film,
-  CheckCircle2,
+  Check,
   AlertCircle,
-  Loader2,
-  RefreshCw,
-  Sparkles,
+  RotateCcw,
 } from 'lucide-react';
 
 interface BatchItemProps {
@@ -49,65 +47,73 @@ export const BatchItem: React.FC<BatchItemProps> = ({
   const savings = calculateSavings();
 
   return (
-    <div className={`batch-item-card status-${item.status}`}>
-      {/* Thumbnail / Video Preview */}
-      <div className="item-media-preview">
+    <article className={`queue-row is-${item.status}`}>
+      {/* Thumbnail with explicit dimensions (R-40) */}
+      <div className="queue-thumb-wrap">
         {item.thumbnailUrl ? (
-          <img src={item.thumbnailUrl} alt={item.name} className="item-thumbnail" />
+          <img
+            src={item.thumbnailUrl}
+            alt={`Frame preview of ${item.name}`}
+            width={88}
+            height={56}
+            className="queue-thumb-img"
+          />
         ) : (
-          <div className="thumbnail-fallback">
-            <Film size={24} className="fallback-film-icon" />
+          <div className="queue-thumb-fallback" aria-hidden="true">
+            <Film size={20} />
           </div>
         )}
         {item.duration > 0 && (
-          <span className="thumbnail-duration-badge">{formatDuration(item.duration)}</span>
+          <span className="queue-duration-tag">{formatDuration(item.duration)}</span>
         )}
       </div>
 
-      {/* Main Details and Controls */}
-      <div className="item-body">
-        <div className="item-header-row">
-          <div className="item-title-meta">
-            <h4 className="item-filename" title={item.name}>
+      {/* Track Info & Status */}
+      <div className="queue-main">
+        <div className="queue-top-row">
+          <div className="queue-identity">
+            <h3 className="queue-filename" title={item.name}>
               {item.name}
-            </h4>
-            <div className="item-meta-tags">
-              <span className="meta-tag">{formatBytes(item.size)}</span>
+            </h3>
+            <div className="queue-specs">
+              <span>{formatBytes(item.size)}</span>
               {item.width && item.height && (
-                <span className="meta-tag">
-                  {item.width}×{item.height}
-                </span>
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    {item.width}x{item.height}
+                  </span>
+                </>
               )}
             </div>
           </div>
 
-          {/* Quick Format & Quality Selectors (disabled while converting) */}
-          <div className="item-settings-strip">
+          <div className="queue-format-controls">
             <select
-              className="mini-select"
+              className="row-select"
               value={item.settings.format}
               disabled={isConvertingAny || item.status === 'completed'}
               onChange={(e) =>
                 onUpdateSettings(item.id, e.target.value as AudioFormat, item.settings.bitrate)
               }
-              aria-label={`Target format for ${item.name}`}
+              aria-label={`Output format for ${item.name}`}
             >
               {FORMAT_OPTIONS.map((f) => (
                 <option key={f.id} value={f.id}>
-                  {f.name} ({f.extension})
+                  {f.name}
                 </option>
               ))}
             </select>
 
             {!currentFormatMeta.lossless && (
               <select
-                className="mini-select"
+                className="row-select"
                 value={item.settings.bitrate}
                 disabled={isConvertingAny || item.status === 'completed'}
                 onChange={(e) =>
                   onUpdateSettings(item.id, item.settings.format, e.target.value as AudioBitrate)
                 }
-                aria-label={`Target bitrate for ${item.name}`}
+                aria-label={`Bitrate for ${item.name}`}
               >
                 {BITRATE_OPTIONS.map((b) => (
                   <option key={b.value} value={b.value}>
@@ -119,25 +125,31 @@ export const BatchItem: React.FC<BatchItemProps> = ({
           </div>
         </div>
 
-        {/* Status / Conversion Progress / Audio Player */}
-        <div className="item-status-area">
+        {/* Dynamic Status Row */}
+        <div className="queue-status-row">
           {item.status === 'idle' && (
-            <div className="status-idle-hint">
-              <span>Ready for extraction &rarr; {currentFormatMeta.name}</span>
-            </div>
+            <p className="row-status-idle">
+              Queued for {currentFormatMeta.name}
+              {!currentFormatMeta.lossless ? ` at ${item.settings.bitrate}` : ' lossless'}
+            </p>
           )}
 
           {item.status === 'converting' && (
-            <div className="conversion-progress-box">
-              <div className="progress-info-row">
-                <span className="converting-label">
-                  <Loader2 size={13} className="spin-icon" /> Converting audio stream...
+            <div className="row-converting-block">
+              <div className="row-converting-head">
+                <span className="row-converting-label">
+                  <span className="inline-eq" aria-hidden="true">
+                    <span className="eq-bar" />
+                    <span className="eq-bar" />
+                    <span className="eq-bar" />
+                  </span>
+                  Extracting audio stream...
                 </span>
-                <span className="progress-percent-text">{item.progress}%</span>
+                <span className="row-converting-pct">{item.progress}%</span>
               </div>
-              <div className="progress-bar-track">
+              <div className="row-progress-track" aria-hidden="true">
                 <div
-                  className="progress-bar-fill"
+                  className="row-progress-fill"
                   style={{ width: `${Math.max(4, item.progress)}%` }}
                 />
               </div>
@@ -145,73 +157,70 @@ export const BatchItem: React.FC<BatchItemProps> = ({
           )}
 
           {item.status === 'completed' && item.convertedUrl && (
-            <div className="completed-area">
-              <div className="completed-stats-row">
-                <span className="completed-tag">
-                  <CheckCircle2 size={13} /> {item.outputFileName}
+            <div className="row-completed-block">
+              <div className="row-completed-meta">
+                <span className="row-done-label">
+                  <Check size={14} aria-hidden="true" />
+                  {item.outputFileName}
                 </span>
                 {item.convertedSize && (
-                  <span className="converted-size-tag">
+                  <span className="row-size-telemetry">
                     {formatBytes(item.convertedSize)}
-                    {savings && (
-                      <span className="savings-badge">
-                        <Sparkles size={11} className="inline-icon" /> {savings}
-                      </span>
-                    )}
+                    {savings && <span className="row-savings-tag">{savings}</span>}
                   </span>
                 )}
               </div>
-              <AudioPlayer src={item.convertedUrl} filename={item.outputFileName || item.name} />
+              <AudioPlayer
+                src={item.convertedUrl}
+                filename={item.outputFileName || item.name}
+              />
             </div>
           )}
 
           {item.status === 'error' && (
-            <div className="error-box">
-              <div className="error-text-row">
-                <AlertCircle size={14} className="error-icon" />
-                <span className="error-msg">
-                  {item.errorMessage || 'Conversion failed. Please try a different audio format.'}
-                </span>
-              </div>
+            <div className="row-error-block" role="alert">
+              <span className="row-error-msg">
+                <AlertCircle size={15} aria-hidden="true" />
+                {item.errorMessage || 'Extraction failed. Try a different output format.'}
+              </span>
               <button
                 type="button"
-                className="btn-retry"
+                className="btn-retry-row"
                 onClick={() => onRetry(item.id)}
                 disabled={isConvertingAny}
               >
-                <RefreshCw size={12} /> Retry
+                <RotateCcw size={14} aria-hidden="true" />
+                Retry
               </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Right Action buttons */}
-      <div className="item-actions">
+      {/* Row Actions */}
+      <div className="queue-actions">
         {item.status === 'completed' && (
           <button
             type="button"
-            className="action-btn download-btn"
+            className="row-action-btn is-download"
             onClick={handleDownload}
-            title="Download Converted Audio"
             aria-label={`Download ${item.outputFileName}`}
           >
-            <Download size={16} />
-            <span className="btn-label-desktop">Download</span>
+            <Download size={16} aria-hidden="true" />
+            <span className="action-text-desktop">Download</span>
           </button>
         )}
 
         <button
           type="button"
-          className="action-btn delete-btn"
+          className="row-action-btn is-remove"
           onClick={() => onRemove(item.id)}
           disabled={item.status === 'converting'}
-          title="Remove from queue"
-          aria-label={`Remove ${item.name}`}
+          aria-label={`Remove ${item.name} from queue`}
         >
-          <Trash2 size={16} />
+          <Trash2 size={16} aria-hidden="true" />
         </button>
       </div>
-    </div>
+    </article>
   );
 };

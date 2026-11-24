@@ -18,14 +18,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ src, filename }) => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const handleLoadedMetadata = () => {
-      setDuration(audio.duration || 0);
-    };
-
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-    };
-
+    const handleLoadedMetadata = () => setDuration(audio.duration || 0);
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
     const handleEnded = () => {
       setIsPlaying(false);
       setCurrentTime(0);
@@ -72,19 +66,23 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ src, filename }) => {
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="audio-player-container" aria-label={`Audio preview for ${filename}`}>
+    <div className="audio-preview-bar" role="region" aria-label={`Audio preview for ${filename}`}>
       <audio ref={audioRef} src={src} preload="metadata" />
 
       <button
         type="button"
-        className="player-play-btn"
+        className="player-control-btn"
         onClick={togglePlay}
-        aria-label={isPlaying ? 'Pause' : 'Play audio'}
+        aria-label={isPlaying ? `Pause ${filename}` : `Play ${filename}`}
       >
-        {isPlaying ? <Pause size={14} /> : <Play size={14} className="play-icon-offset" />}
+        {isPlaying ? (
+          <Pause size={15} aria-hidden="true" />
+        ) : (
+          <Play size={15} className="play-icon-offset" aria-hidden="true" />
+        )}
       </button>
 
-      <div className="player-track-wrapper">
+      <div className="player-scrubber-col">
         <input
           type="range"
           min={0}
@@ -92,13 +90,13 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ src, filename }) => {
           step={0.1}
           value={currentTime}
           onChange={handleSeek}
-          className="player-range-input"
-          aria-label="Audio progress seek bar"
+          className="player-scrubber"
+          aria-label={`Seek position for ${filename}`}
           style={{
-            background: `linear-gradient(to right, var(--color-brand) ${progressPercent}%, var(--color-border) ${progressPercent}%)`,
+            background: `linear-gradient(to right, var(--color-brand) ${progressPercent}%, var(--border-subtle) ${progressPercent}%)`,
           }}
         />
-        <div className="player-time-display">
+        <div className="player-timestamps">
           <span>{formatDuration(currentTime)}</span>
           <span>{formatDuration(duration)}</span>
         </div>
@@ -106,11 +104,15 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ src, filename }) => {
 
       <button
         type="button"
-        className="player-mute-btn"
+        className="player-control-btn"
         onClick={toggleMute}
-        aria-label={isMuted ? 'Unmute' : 'Mute'}
+        aria-label={isMuted ? `Unmute ${filename}` : `Mute ${filename}`}
       >
-        {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+        {isMuted ? (
+          <VolumeX size={15} aria-hidden="true" />
+        ) : (
+          <Volume2 size={15} aria-hidden="true" />
+        )}
       </button>
     </div>
   );

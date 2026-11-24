@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { X, Shield, Cpu, Sparkles, Music, Layers } from 'lucide-react';
+import { X, Shield, Cpu, Layers, HardDrive } from 'lucide-react';
 import { FORMAT_OPTIONS } from '../utils/formatters';
 
 interface InfoModalProps {
@@ -18,65 +18,73 @@ export const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose }) => {
       if (!dialog.open) {
         dialog.showModal();
       }
-    } else {
-      if (dialog.open) {
-        dialog.close();
-      }
+    } else if (dialog.open) {
+      dialog.close();
     }
   }, [isOpen]);
-
-  if (!isOpen) return null;
 
   return (
     <dialog
       ref={dialogRef}
-      className="modal-dialog"
+      className="info-dialog"
       onClose={onClose}
       onClick={(e) => {
         if (e.target === dialogRef.current) {
           onClose();
         }
       }}
+      aria-labelledby="info-dialog-title"
     >
-      <div className="modal-content">
-        <div className="modal-header">
-          <div className="modal-title-group">
-            <Sparkles size={20} className="modal-title-icon" />
-            <h2 className="modal-heading">About AudioExtract Pro</h2>
-          </div>
+      <div className="info-dialog-inner">
+        <div className="info-dialog-header">
+          <h2 id="info-dialog-title" className="info-dialog-title">
+            About AudioExtract
+          </h2>
           <button
             type="button"
-            className="btn-icon"
+            className="icon-btn"
             onClick={onClose}
-            aria-label="Close information dialog"
+            aria-label="Close dialog"
           >
-            <X size={18} />
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
-        <div className="modal-body">
-          <section className="modal-section">
-            <h3 className="section-title">
-              <Shield size={16} className="section-icon" /> 100% Client-Side Privacy
+        <div className="info-dialog-body">
+          <section className="info-block">
+            <h3 className="info-block-title">
+              <Shield size={16} aria-hidden="true" />
+              Local WebAssembly processing
             </h3>
-            <p className="section-p">
-              Unlike cloud-based converters that upload your sensitive video files to third-party
-              servers, <strong>AudioExtract Pro executes 100% inside your web browser</strong> using
-              WebAssembly (FFmpeg Wasm). Your videos and audio files never leave your computer.
+            <p className="info-block-text">
+              Extraction runs inside your browser with FFmpeg compiled to WebAssembly. Source videos
+              and exported audio stay on your machine and are never uploaded to a server.
             </p>
           </section>
 
-          <section className="modal-section">
-            <h3 className="section-title">
-              <Cpu size={16} className="section-icon" /> Supported Formats & Codecs
+          <section className="info-block">
+            <h3 className="info-block-title">
+              <HardDrive size={16} aria-hidden="true" />
+              Browser session persistence
             </h3>
-            <div className="info-formats-grid">
+            <p className="info-block-text">
+              Queued videos, settings, and completed audio files are saved in IndexedDB. Refreshing
+              the page keeps your queue and converted files ready for playback or download.
+            </p>
+          </section>
+
+          <section className="info-block">
+            <h3 className="info-block-title">
+              <Cpu size={16} aria-hidden="true" />
+              Supported output formats
+            </h3>
+            <div className="info-format-list">
               {FORMAT_OPTIONS.map((f) => (
-                <div key={f.id} className="info-format-card">
-                  <div className="info-format-header">
+                <div key={f.id} className="info-format-row">
+                  <div className="info-format-top">
                     <span className="info-format-name">{f.name}</span>
                     <span className="info-format-ext">{f.extension}</span>
-                    {f.lossless && <span className="info-lossless-tag">Lossless</span>}
+                    {f.lossless && <span className="info-lossless-label">Lossless</span>}
                   </div>
                   <p className="info-format-desc">{f.description}</p>
                 </div>
@@ -84,31 +92,21 @@ export const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose }) => {
             </div>
           </section>
 
-          <section className="modal-section">
-            <h3 className="section-title">
-              <Layers size={16} className="section-icon" /> Batch Conversion & ZIP Archiving
+          <section className="info-block">
+            <h3 className="info-block-title">
+              <Layers size={16} aria-hidden="true" />
+              Batch queue &amp; ZIP export
             </h3>
-            <p className="section-p">
-              Drag and drop multiple videos at once. You can customize the audio format and quality
-              globally or fine-tune individual tracks in your queue. Once conversion finishes,
-              download all tracks packaged neatly in a single <code>.zip</code> file with one click.
-            </p>
-          </section>
-
-          <section className="modal-section">
-            <h3 className="section-title">
-              <Music size={16} className="section-icon" /> Instant In-Browser Audio Player
-            </h3>
-            <p className="section-p">
-              Preview and listen to your converted audio tracks instantly using the integrated
-              minimalist player before downloading.
+            <p className="info-block-text">
+              Queue multiple videos at once, override format or bitrate per track, preview the
+              converted audio inline, and export all completed files in a single ZIP archive.
             </p>
           </section>
         </div>
 
-        <div className="modal-footer">
-          <button type="button" className="btn-action btn-primary" onClick={onClose}>
-            Got it, let's convert!
+        <div className="info-dialog-footer">
+          <button type="button" className="btn-primary" onClick={onClose}>
+            Close
           </button>
         </div>
       </div>

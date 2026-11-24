@@ -8,7 +8,7 @@ import {
   VolumeLevel,
 } from '../types';
 import { FORMAT_OPTIONS, BITRATE_OPTIONS } from '../utils/formatters';
-import { Settings2, ChevronDown, ChevronUp, Sliders, Volume2 } from 'lucide-react';
+import { SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface GlobalSettingsProps {
   settings: ConversionSettings;
@@ -43,58 +43,36 @@ export const GlobalSettings: React.FC<GlobalSettingsProps> = ({
     });
   };
 
-  const handleBitrateChange = (bitrate: AudioBitrate) => {
-    onChange({
-      ...settings,
-      bitrate,
-    });
-  };
-
-  const handleSampleRateChange = (sampleRate: SampleRate) => {
-    onChange({
-      ...settings,
-      sampleRate,
-    });
-  };
-
-  const handleChannelsChange = (channels: AudioChannels) => {
-    onChange({
-      ...settings,
-      channels,
-    });
-  };
-
-  const handleVolumeChange = (volume: VolumeLevel) => {
-    onChange({
-      ...settings,
-      volume,
-    });
-  };
-
   return (
-    <div className="global-settings-card">
-      <div className="settings-header">
-        <div className="settings-title-row">
-          <Sliders size={18} className="settings-icon" />
-          <h2 className="settings-heading">Output Audio Configuration</h2>
+    <aside className="config-rack" aria-label="Output audio configuration">
+      <div className="rack-header">
+        <div className="rack-title-group">
+          <SlidersHorizontal size={16} className="rack-icon" aria-hidden="true" />
+          <h2 className="rack-heading">Output Profile</h2>
         </div>
+
         {itemsCount > 0 && (
           <button
             type="button"
-            className="btn-text-action"
+            className="btn-link-action"
             onClick={onApplyToAll}
             disabled={disabled}
-            title="Update all queued files with these settings"
           >
-            Apply to all ({itemsCount})
+            Apply to {itemsCount} queued
           </button>
         )}
       </div>
 
-      {/* Format Selector Pills */}
-      <div className="setting-section">
-        <label className="section-label">Target Format</label>
-        <div className="format-pills-grid" role="radiogroup" aria-label="Target Audio Format">
+      {/* Format Selector */}
+      <div className="rack-section">
+        <span className="rack-label" id="format-group-label">
+          Target format
+        </span>
+        <div
+          className="format-grid"
+          role="radiogroup"
+          aria-labelledby="format-group-label"
+        >
           {FORMAT_OPTIONS.map((fmt) => {
             const isSelected = settings.format === fmt.id;
             return (
@@ -105,122 +83,130 @@ export const GlobalSettings: React.FC<GlobalSettingsProps> = ({
                 aria-checked={isSelected}
                 disabled={disabled}
                 onClick={() => handleFormatChange(fmt.id)}
-                className={`format-pill ${isSelected ? 'selected' : ''}`}
+                className={`format-cell ${isSelected ? 'is-selected' : ''}`}
               >
-                <div className="format-pill-top">
-                  <span className="format-name">{fmt.name}</span>
-                  {fmt.lossless && <span className="pill-lossless-badge">Lossless</span>}
-                </div>
-                <span className="format-ext">{fmt.extension}</span>
+                <span className="format-cell-name">{fmt.name}</span>
+                <span className="format-cell-meta">
+                  {fmt.lossless ? 'Lossless' : fmt.extension}
+                </span>
               </button>
             );
           })}
         </div>
-        <p className="format-description-text">
-          {selectedFormatMeta.description}
-        </p>
+        <p className="rack-hint">{selectedFormatMeta.description}</p>
       </div>
 
-      {/* Quality / Bitrate row */}
-      <div className="settings-row-grid">
-        <div className="setting-control-group">
-          <label className="control-label" htmlFor="bitrate-select">
-            Audio Bitrate / Quality
+      {/* Quality & Sample Rate */}
+      <div className="rack-controls-stack">
+        <div className="field-group">
+          <label className="field-label" htmlFor="bitrate-select">
+            Bitrate quality
           </label>
           {selectedFormatMeta.lossless ? (
-            <div className="lossless-indicator">
-              <span>Pure Uncompressed / Lossless Audio Stream</span>
+            <div className="lossless-readout">
+              Uncompressed / lossless stream (bitrate N/A)
             </div>
           ) : (
             <select
               id="bitrate-select"
-              className="select-input"
+              className="field-select"
               value={settings.bitrate}
               disabled={disabled}
-              onChange={(e) => handleBitrateChange(e.target.value as AudioBitrate)}
+              onChange={(e) =>
+                onChange({ ...settings, bitrate: e.target.value as AudioBitrate })
+              }
             >
               {BITRATE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
-                  {opt.label} • {opt.desc}
+                  {opt.label} ({opt.desc})
                 </option>
               ))}
             </select>
           )}
         </div>
 
-        <div className="setting-control-group">
-          <label className="control-label" htmlFor="sample-rate-select">
-            Sample Rate
+        <div className="field-group">
+          <label className="field-label" htmlFor="sample-rate-select">
+            Sample rate
           </label>
           <select
             id="sample-rate-select"
-            className="select-input"
+            className="field-select"
             value={settings.sampleRate}
             disabled={disabled}
-            onChange={(e) => handleSampleRateChange(e.target.value as SampleRate)}
+            onChange={(e) =>
+              onChange({ ...settings, sampleRate: e.target.value as SampleRate })
+            }
           >
-            <option value="original">Original (Keep Video Source)</option>
-            <option value="48000">48,000 Hz (Pro Video / Studio)</option>
-            <option value="44100">44,100 Hz (CD Audio Standard)</option>
+            <option value="original">Match source video</option>
+            <option value="48000">48,000 Hz (Video standard)</option>
+            <option value="44100">44,100 Hz (CD standard)</option>
             <option value="32000">32,000 Hz (Broadcast)</option>
-            <option value="22050">22,050 Hz (Speech / Low Bandwidth)</option>
+            <option value="22050">22,050 Hz (Voice compact)</option>
           </select>
         </div>
       </div>
 
-      {/* Advanced toggle */}
-      <div className="advanced-toggle-wrapper">
+      {/* Collapsible Advanced Rack */}
+      <div className="rack-advanced">
         <button
           type="button"
-          className="advanced-toggle-btn"
-          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="advanced-expander"
+          onClick={() => setShowAdvanced((v) => !v)}
+          aria-expanded={showAdvanced}
+          aria-controls="advanced-audio-controls"
         >
-          <Settings2 size={14} />
-          <span>Advanced Audio Options (Channels, Gain)</span>
-          {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          <span>Channels &amp; gain</span>
+          {showAdvanced ? (
+            <ChevronUp size={16} aria-hidden="true" />
+          ) : (
+            <ChevronDown size={16} aria-hidden="true" />
+          )}
         </button>
-      </div>
 
-      {showAdvanced && (
-        <div className="advanced-options-panel">
-          <div className="settings-row-grid">
-            <div className="setting-control-group">
-              <label className="control-label" htmlFor="channels-select">
-                Channels
+        {showAdvanced && (
+          <div id="advanced-audio-controls" className="rack-controls-stack advanced-body">
+            <div className="field-group">
+              <label className="field-label" htmlFor="channels-select">
+                Audio channels
               </label>
               <select
                 id="channels-select"
-                className="select-input"
+                className="field-select"
                 value={settings.channels}
                 disabled={disabled}
-                onChange={(e) => handleChannelsChange(e.target.value as AudioChannels)}
+                onChange={(e) =>
+                  onChange({ ...settings, channels: e.target.value as AudioChannels })
+                }
               >
-                <option value="original">Original (Preserve Source)</option>
-                <option value="2">Stereo (2 Channels)</option>
-                <option value="1">Mono (1 Channel - Half File Size)</option>
+                <option value="original">Match source</option>
+                <option value="2">Stereo (2 ch)</option>
+                <option value="1">Mono (1 ch)</option>
               </select>
             </div>
 
-            <div className="setting-control-group">
-              <label className="control-label" htmlFor="volume-select">
-                <Volume2 size={13} className="inline-icon" /> Volume Normalization / Boost
+            <div className="field-group">
+              <label className="field-label" htmlFor="volume-select">
+                Output gain
               </label>
               <select
                 id="volume-select"
-                className="select-input"
+                className="field-select"
                 value={settings.volume}
                 disabled={disabled}
-                onChange={(e) => handleVolumeChange(e.target.value as VolumeLevel)}
+                onChange={(e) =>
+                  onChange({ ...settings, volume: e.target.value as VolumeLevel })
+                }
               >
-                <option value="1.0">100% (Normal Original Volume)</option>
-                <option value="1.25">125% (+25% Audio Boost)</option>
-                <option value="1.5">150% (+50% Audio Boost)</option>
-                <option value="0.75">75% (Attenuate Loud Audio)</option>
+                <option value="1.0">100% (Unity gain)</option>
+                <option value="1.25">125% (+2 dB boost)</option>
+                <option value="1.5">150% (+3.5 dB boost)</option>
+                <option value="0.75">75% (Attenuate)</option>
               </select>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </aside>
   );
 };

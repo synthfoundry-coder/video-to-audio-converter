@@ -6,6 +6,7 @@ import { GlobalSettings } from './components/GlobalSettings';
 import { BatchItem } from './components/BatchItem';
 import { BatchToolbar } from './components/BatchToolbar';
 import { InfoModal } from './components/InfoModal';
+import { ConversionVisualizer } from './components/ConversionVisualizer';
 import { BatchItemData, ConversionSettings, AudioFormat, AudioBitrate } from './types';
 import { ffmpegService } from './services/ffmpegService';
 import { extractVideoMetadata } from './utils/thumbnail';
@@ -34,10 +35,11 @@ export function App() {
   });
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [restoredBannerText, setRestoredBannerText] = useState<string | null>(null);
+  const [batchTrackIndex, setBatchTrackIndex] = useState(0);
+  const [batchTotalToConvert, setBatchTotalToConvert] = useState(0);
 
   const cancelRequestedRef = useRef(false);
 
-  // Helper to persist an item to IndexedDB
   const persistItemToStorage = useCallback(async (item: BatchItemData) => {
     try {
       const record: PersistedItemRecord = {
@@ -64,7 +66,7 @@ export function App() {
     }
   }, []);
 
-  // 1. Initial Load: Restore items from IndexedDB
+  // Restore saved items from IndexedDB on initial mount
   useEffect(() => {
     let isMounted = true;
     dbService
@@ -87,19 +89,19 @@ export function App() {
               completedCount++;
             }
 
-            // If a file was in the middle of converting when refreshed, restore to idle
             let status = rec.status;
             let progress = rec.progress;
             if (status === 'converting') {
               status = 'idle';
               progress = 0;
               unfinishedCount++;
-              // Update in database to clean idle state
-              dbService.saveItem({
-                ...rec,
-                status: 'idle',
-                progress: 0,
-              }).catch(() => {});
+              dbService
+                .saveItem({
+                  ...rec,
+                  status: 'idle',
+                  progress: 0,
+                })
+                .catch(() => {});
             }
 
             return {
@@ -127,15 +129,15 @@ export function App() {
 
           if (unfinishedCount > 0) {
             setRestoredBannerText(
-              `Restored ${restoredItems.length} file(s) across browser refresh. ${unfinishedCount} unfinished task(s) are ready to resume.`
+              `Restored ${restoredItems.length} file(s) from browser storage. ${unfinishedCount} unfinished task(s) are ready to resume.`
             );
           } else if (completedCount > 0) {
             setRestoredBannerText(
-              `Restored ${restoredItems.length} file(s) across browser refresh (${completedCount} already converted & ready to play/download).`
+              `Restored ${restoredItems.length} file(s) from browser storage (${completedCount} converted and ready to play or download).`
             );
           } else {
             setRestoredBannerText(
-              `Restored ${restoredItems.length} queued file(s) across browser refresh.`
+              `Restored ${restoredItems.length} queued file(s) from browser storage.`
             );
           }
         }
@@ -149,12 +151,13 @@ export function App() {
     };
   }, []);
 
-  // 2. Prevent accidental browser close/refresh during active conversion
+  // Warn before accidentally refreshing or closing during active conversion
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isConverting) {
         e.preventDefault();
-        e.returnValue = 'Conversion in progress. If you leave or reload, active processing will be interrupted.';
+        e.returnValue =
+          'Conversion in progress. Reloading or closing now will pause the current extraction.';
         return e.returnValue;
       }
     };
@@ -165,7 +168,7 @@ export function App() {
     };
   }, [isConverting]);
 
-  // Apply theme to document
+  // Apply selected theme
   useEffect(() => {
     const root = document.documentElement;
     if (theme === 'system') {
@@ -179,7 +182,6 @@ export function App() {
     localStorage.setItem('audioextract_theme', theme);
   }, [theme]);
 
-  // Listen to system theme changes when in 'system' mode
   useEffect(() => {
     if (theme !== 'system') return;
     const media = window.matchMedia('(prefers-color-scheme: dark)');
@@ -190,7 +192,7 @@ export function App() {
     return () => media.removeEventListener('change', handler);
   }, [theme]);
 
-  // Pre-load FFmpeg WebAssembly in the background
+  // Pre-load FFmpeg WebAssembly engine
   useEffect(() => {
     let isMounted = true;
     setEngineStatus({ isLoaded: false, isLoading: true });
@@ -213,7 +215,6 @@ export function App() {
     };
   }, []);
 
-  // Handle file addition
   const handleFilesSelected = async (newFiles: File[]) => {
     if (newFiles.length === 0) return;
 
@@ -235,12 +236,10 @@ export function App() {
 
     setItems((prev) => [...prev, ...newItems]);
 
-    // Save initial items immediately to IndexedDB
     for (const item of newItems) {
       persistItemToStorage(item);
     }
 
-    // Extract metadata & thumbnails in parallel
     for (const item of newItems) {
       extractVideoMetadata(item.file).then((meta) => {
         setItems((current) =>
@@ -263,7 +262,6 @@ export function App() {
     }
   };
 
-  // Remove individual item from queue and storage
   const handleRemoveItem = (id: string) => {
     setItems((prev) => {
       const target = prev.find((item) => item.id === id);
@@ -275,7 +273,6 @@ export function App() {
     dbService.deleteItem(id).catch(console.error);
   };
 
-  // Clear entire queue and storage
   const handleClearAll = () => {
     if (isConverting) return;
     items.forEach((item) => {
@@ -288,7 +285,6 @@ export function App() {
     dbService.clearAll().catch(console.error);
   };
 
-  // Apply current global settings to all queued items
   const handleApplyToAll = () => {
     setItems((prev) =>
       prev.map((item) => {
@@ -305,7 +301,6 @@ export function App() {
     );
   };
 
-  // Update settings for an individual file
   const handleUpdateItemSettings = (id: string, format: AudioFormat, bitrate: AudioBitrate) => {
     setItems((prev) =>
       prev.map((item) => {
@@ -326,7 +321,6 @@ export function App() {
     );
   };
 
-  // Convert a single item
   const convertSingleItem = useCallback(
     async (item: BatchItemData): Promise<BatchItemData> => {
       const baseName = getBaseFileName(item.name);
@@ -377,19 +371,20 @@ export function App() {
     [persistItemToStorage]
   );
 
-  // Convert all queued items sequentially
   const handleConvertAll = async () => {
     if (isConverting) return;
     const itemsToConvert = items.filter((i) => i.status === 'idle' || i.status === 'error');
     if (itemsToConvert.length === 0) return;
 
     setIsConverting(true);
+    setBatchTotalToConvert(itemsToConvert.length);
     cancelRequestedRef.current = false;
 
-    for (const item of itemsToConvert) {
+    for (let idx = 0; idx < itemsToConvert.length; idx++) {
       if (cancelRequestedRef.current) break;
+      const item = itemsToConvert[idx];
+      setBatchTrackIndex(idx + 1);
 
-      // Mark current as converting in state and storage
       const convertingState: BatchItemData = {
         ...item,
         status: 'converting',
@@ -404,38 +399,37 @@ export function App() {
 
       const updated = await convertSingleItem(item);
 
-      setItems((current) =>
-        current.map((c) => (c.id === item.id ? updated : c))
-      );
+      setItems((current) => current.map((c) => (c.id === item.id ? updated : c)));
     }
 
     setIsConverting(false);
+    setBatchTrackIndex(0);
+    setBatchTotalToConvert(0);
 
-    // If all finished successfully, celebrate!
-    const allDone = items.every(
-      (item) => item.status === 'completed' || itemsToConvert.find((i) => i.id === item.id)
-    );
-    if (!cancelRequestedRef.current && allDone) {
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!cancelRequestedRef.current && !prefersReducedMotion) {
       try {
         confetti({
-          particleCount: 50,
-          spread: 60,
-          origin: { y: 0.8 },
-          colors: ['#3b82f6', '#10b981', '#6366f1', '#f59e0b'],
+          particleCount: 40,
+          spread: 55,
+          origin: { y: 0.82 },
+          colors: ['#047857', '#34d399', '#141413', '#a7f3d0'],
         });
       } catch {
-        // Safe ignore
+        // Ignore confetti errors
       }
     }
   };
 
-  // Retry an individual failed item
   const handleRetryItem = async (id: string) => {
     if (isConverting) return;
     const target = items.find((i) => i.id === id);
     if (!target) return;
 
     setIsConverting(true);
+    setBatchTrackIndex(1);
+    setBatchTotalToConvert(1);
+
     const convertingState: BatchItemData = {
       ...target,
       status: 'converting',
@@ -448,15 +442,15 @@ export function App() {
     const updated = await convertSingleItem(target);
     setItems((current) => current.map((c) => (c.id === id ? updated : c)));
     setIsConverting(false);
+    setBatchTrackIndex(0);
+    setBatchTotalToConvert(0);
   };
 
-  // Cancel conversion
   const handleCancel = () => {
     cancelRequestedRef.current = true;
     setIsConverting(false);
   };
 
-  // Download all converted files as ZIP
   const handleDownloadZip = async () => {
     setIsDownloadingZip(true);
     try {
@@ -469,6 +463,9 @@ export function App() {
     }
   };
 
+  const activeConvertingItem = items.find((i) => i.status === 'converting') || null;
+  const queuedCount = items.filter((i) => i.status === 'idle').length;
+
   return (
     <div className="app-shell">
       <Header
@@ -480,52 +477,72 @@ export function App() {
       />
 
       <main className="app-main">
-        {/* Restored items notice */}
         {restoredBannerText && items.length > 0 && (
-          <div className="restore-notification-banner" role="status" aria-live="polite">
-            <div className="restore-banner-content">
-              <CheckCircle2 size={16} className="restore-banner-icon" />
+          <div className="restore-banner" role="status" aria-live="polite">
+            <div className="restore-banner-msg">
+              <CheckCircle2 size={16} className="restore-icon" aria-hidden="true" />
               <span>{restoredBannerText}</span>
             </div>
             <button
               type="button"
-              className="btn-close-banner"
+              className="banner-dismiss-btn"
               onClick={() => setRestoredBannerText(null)}
-              aria-label="Dismiss restore notice"
+              aria-label="Dismiss session restore notice"
             >
-              <X size={14} />
+              <X size={16} aria-hidden="true" />
             </button>
           </div>
         )}
 
-        {/* Hero Section */}
-        <div className="hero-banner">
-          <h1 className="hero-heading">Instant Video to Audio Converter</h1>
-          <p className="hero-lead">
-            Extract studio-grade audio from any video container right inside your browser. No
-            uploads, no servers, limitless batch processing.
-          </p>
+        {/* Editorial Hero Band */}
+        <section className="hero-band">
+          <div className="hero-copy">
+            <h1 className="hero-title">Extract clean audio from any video.</h1>
+            <p className="hero-subtitle">
+              Batch convert MP4, MKV, MOV, AVI, or WebM into MP3, WAV, AAC, M4A, FLAC, OGG, or OPUS
+              directly inside your browser. No files leave your device.
+            </p>
+          </div>
+          <div className="hero-scale-rule" aria-hidden="true">
+            <span className="scale-label">44.1 / 48 kHz</span>
+            <span className="scale-ticks" />
+            <span className="scale-label">LOCAL WASM</span>
+          </div>
+        </section>
+
+        {/* Two-Column Editorial Workbench */}
+        <div className="workbench-grid">
+          <div className="workbench-primary">
+            {activeConvertingItem ? (
+              <ConversionVisualizer
+                activeItem={activeConvertingItem}
+                currentIndex={batchTrackIndex || 1}
+                totalCount={batchTotalToConvert || 1}
+                onCancel={handleCancel}
+              />
+            ) : (
+              <DropZone
+                onFilesSelected={handleFilesSelected}
+                disabled={isConverting}
+                hasFiles={items.length > 0}
+              />
+            )}
+          </div>
+
+          <div className="workbench-secondary">
+            <GlobalSettings
+              settings={globalSettings}
+              onChange={setGlobalSettings}
+              onApplyToAll={handleApplyToAll}
+              itemsCount={queuedCount}
+              disabled={isConverting}
+            />
+          </div>
         </div>
 
-        {/* Global Format & Settings Controller */}
-        <GlobalSettings
-          settings={globalSettings}
-          onChange={setGlobalSettings}
-          onApplyToAll={handleApplyToAll}
-          itemsCount={items.filter((i) => i.status === 'idle').length}
-          disabled={isConverting}
-        />
-
-        {/* Drag and Drop Zone */}
-        <DropZone
-          onFilesSelected={handleFilesSelected}
-          disabled={isConverting}
-          hasFiles={items.length > 0}
-        />
-
-        {/* Batch Queue Section */}
+        {/* Full-Width Batch Queue */}
         {items.length > 0 && (
-          <section className="batch-section" aria-label="Batch Conversion Queue">
+          <section className="queue-section" aria-label="Batch conversion queue">
             <BatchToolbar
               items={items}
               isConverting={isConverting}
@@ -536,7 +553,7 @@ export function App() {
               isDownloadingZip={isDownloadingZip}
             />
 
-            <div className="batch-list">
+            <div className="queue-list">
               {items.map((item) => (
                 <BatchItem
                   key={item.id}
@@ -552,14 +569,13 @@ export function App() {
         )}
       </main>
 
-      {/* Footer */}
       <footer className="app-footer">
-        <p className="footer-note">
-          AudioExtract Pro • Powered by WebAssembly &amp; FFmpeg Core • Persistent Local IndexedDB Storage
-        </p>
+        <div className="footer-inner">
+          <span>AudioExtract · Client-side FFmpeg WebAssembly</span>
+          <span>IndexedDB session persistence active</span>
+        </div>
       </footer>
 
-      {/* Info & Help Dialog */}
       <InfoModal isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} />
     </div>
   );
